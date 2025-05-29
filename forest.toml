@@ -3,4 +3,4 @@ trees = ["trees", "macros", "blog"]  # The directories in which your trees are s
 assets = ["assets"]                  # The directories in which your assets are stored
 theme = "theme"                      # The directory in which your theme is stored
 home = "home"
-host = "https://www.krisb.org/forest"
+host = "https://www.greysonwesley.com/wiki"
