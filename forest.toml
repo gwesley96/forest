@@ -4,8 +4,6 @@ assets = ["assets"]                  # The directories in which your assets are 
 theme = "theme"                      # The directory in which your theme is stored
 
 
-[forest]
-assets = ["assets"]
 theme = "theme"
 home = "home"
 host = "https://www.krisb.org/forest"
