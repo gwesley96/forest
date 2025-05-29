@@ -60,8 +60,13 @@ jobs:
           # Check if the target switch exists
           if opam switch list --short | grep -q -E "^${TARGET_SWITCH_NAME}\s*$"; then
             echo "Switch '${TARGET_SWITCH_NAME}' exists. Verifying its OCaml compiler..."
-            # Get the compiler package of the existing switch
-            EXISTING_COMPILER=$(opam switch show "${TARGET_SWITCH_NAME}" | awk '/^# compiler\s+/{print $3}' || true)
+            
+            # Switch to the target switch first, then get compiler info
+            opam switch set "${TARGET_SWITCH_NAME}"
+            eval $(opam env --switch="${TARGET_SWITCH_NAME}" --set-switch)
+            
+            # Get the compiler package of the existing switch using opam list
+            EXISTING_COMPILER=$(opam list --installed --short | grep -E "^ocaml-base-compiler\." | head -1 || echo "")
 
             if [ "$EXISTING_COMPILER" = "$DESIRED_OCAML_COMPILER" ]; then
               echo "Switch '${TARGET_SWITCH_NAME}' is already correctly configured with ${DESIRED_OCAML_COMPILER}."
@@ -92,11 +97,16 @@ jobs:
           echo "Current OPAM switch from 'opam var switch' is: $(opam var switch)"
 
           # Final verification that the setup is as expected
-          if [ "$(opam var switch)" != "${TARGET_SWITCH_NAME}" ] || \
-             [ "$(opam switch show "${TARGET_SWITCH_NAME}" | awk '/^# compiler\s+/{print $3}')" != "${DESIRED_OCAML_COMPILER}" ]; then
+          CURRENT_SWITCH=$(opam var switch)
+          CURRENT_COMPILER=$(opam list --installed --short | grep -E "^ocaml-base-compiler\." | head -1 || echo "")
+          
+          if [ "$CURRENT_SWITCH" != "${TARGET_SWITCH_NAME}" ] || \
+             [ "$CURRENT_COMPILER" != "${DESIRED_OCAML_COMPILER}" ]; then
             echo "Error: Failed to correctly set up switch '${TARGET_SWITCH_NAME}' with ${DESIRED_OCAML_COMPILER}."
-            echo "Current switch details:"
-            opam switch show $(opam var switch)
+            echo "Current switch: $CURRENT_SWITCH"
+            echo "Current compiler: $CURRENT_COMPILER"
+            echo "All installed packages:"
+            opam list --installed
             exit 1
           fi
 
