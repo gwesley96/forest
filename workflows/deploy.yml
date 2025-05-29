@@ -1,0 +1,52 @@
+name: Build and Deploy Forester Site to /files
+
+on:
+  push:
+    branches:
+      - main  # 1. IMPORTANT: Change 'main' if your source repo's default branch is different
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup OCaml and OPAM
+        # This action sets up an OCaml environment and OPAM
+        uses: ocaml/setup-ocaml@v2
+        with:
+          # 2. You might need to specify a particular OCaml version if Forester requires it.
+          #    '4.x' will pick a recent 4.x version.
+          #    Common versions are '4.14.0', '5.0.0', etc.
+          ocaml-compiler: '4.x'
+
+      - name: Install Forester using OPAM
+        run: |
+          # The setup-ocaml action typically initializes opam for you.
+          # If Forester has system dependencies that opam depext handles, this should work.
+          # The '-y' flag auto-confirms prompts.
+          opam install forester -y
+          # To verify (optional, but good for logs):
+          forester --version
+
+      - name: Build Site with Forester
+        # 3. This assumes your forest.toml is at the root of your repository.
+        #    And that 'forester build forest.toml' will, by default or by your forest.toml config,
+        #    place its output into a directory named 'output' at the root.
+        run: forester build forest.toml
+
+      - name: Deploy to gwesley96.github.io/files
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.GH_PAGES_PAT }}        # Your PAT secret
+          external_repository: gwesley96/gwesley96.github.io # Your target GitHub Pages site
+          publish_branch: main                               # Branch on your Pages site to deploy to
+          # 4. This 'publish_dir' MUST point to the directory Forester builds your site into.
+          #    Based on your image, this is './output'.
+          publish_dir: ./output
+          target_dir: files                                  # This puts content into the 'files/' subdirectory
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: Deploy to /files (automated build from source repo)
