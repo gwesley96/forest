@@ -25,32 +25,34 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-ocaml5.1-opam-root-
 
-      - name: Set up OPAM, Install/Update Forester & Dependencies
+            - name: Set up OPAM, Install/Update Forester & Dependencies
         shell: bash # Ensures subcommands run in the same shell context for `eval`
         run: |
           set -e # Exit immediately if a command exits with a non-zero status.
 
           echo "Initializing OPAM and OCaml Switch..."
-          # Initialize OPAM for the root user if it hasn't been done from a cache restore.
-          # Use --bare if ~/.opam exists but is just a placeholder from cache.
-          # Use --reinit to ensure it's usable.
-          opam init --root=/root/.opam --reinit --bare --disable-sandboxing --yes
-          
+          # Initialize OPAM if it's not already initialized
+          if [ ! -d "/root/.opam" ]; then
+            opam init --root=/root/.opam --bare --disable-sandboxing --yes
+          else
+            opam init --root=/root/.opam --reinit --bare --disable-sandboxing --yes
+          fi
+
           # Create or ensure the OCaml 5.1.1 switch exists.
           opam switch list --root=/root/.opam | grep -q "default" || opam switch create default ocaml-base-compiler.5.1.1 --root=/root/.opam --yes
           opam switch set default --root=/root/.opam
 
           # Set up the environment for OPAM for subsequent commands in this step
           eval $(opam env --root=/root/.opam --set-switch)
-          
+
           echo "Verifying OCaml/OPAM versions..."
           opam --version
           ocaml --version
           echo "OPAM Root Directory is: $(opam var root)"
-          
+
           echo "Updating OPAM repositories..."
           opam update -u --yes
-          
+
           echo "Installing Forester and its dependencies (will use cache if possible)..."
           opam install forester --yes --depexts --show-actions
 
