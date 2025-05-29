@@ -3,34 +3,40 @@ name: Build and Deploy Forester Site to /files
 on:
   push:
     branches:
-      - main # 1. IMPORTANT: Change 'main' if your source repo's default branch is different
+      - main
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     container:
       image: ocaml/opam:ubuntu-ocaml-4.14
-      # Add this option to run the container as the root user
-      options: --user root
+      options: --user root # Run the container as the root user
 
     steps:
-      # No explicit chmod step needed here anymore if running as root,
-      # as root will have permissions.
-
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Update OPAM and Install Forester
+      - name: Initialize OPAM, Update, and Install Forester
         run: |
-          # Running as root, opam commands should work fine.
-          # Some opam setups might complain about running as root, but usually it's for safety
-          # in interactive use, less so in CI where the container is ephemeral.
+          # Initialize OPAM for the root user since we are running as root.
+          # --disable-sandboxing is often needed in CI environments.
+          # -a automatically selects the default OCaml compiler.
+          # -y automatically confirms prompts.
+          opam init --disable-sandboxing -a -y
+
+          # The 'opam init' command should have updated the environment,
+          # but 'eval $(opam env)' ensures it's correctly sourced for this shell session.
+          eval $(opam env)
+
           opam update
-          opam install forester -y --no-depexts
+          opam install forester -y --no-depexts # --no-depexts is a precaution
           forester --version
 
       - name: Build Site with Forester
-        run: forester build forest.toml
+        run: |
+          # Ensure the OPAM environment is sourced for this step too
+          eval $(opam env)
+          forester build forest.toml
 
       - name: Deploy to gwesley96.github.io/files
         uses: peaceiris/actions-gh-pages@v4
