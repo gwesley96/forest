@@ -8,19 +8,23 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    container: ocaml/opam:ubuntu-ocaml-4.14
+    container:
+      image: ocaml/opam:ubuntu-ocaml-4.14
+      # Add this option to run the container as the root user
+      options: --user root
 
     steps:
-      - name: Ensure Correct Permissions
-        run: |
-          # Set permissions for GitHub Actions directories
-          sudo chmod -R 777 /__w/_temp /__w/_actions
+      # No explicit chmod step needed here anymore if running as root,
+      # as root will have permissions.
 
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
       - name: Update OPAM and Install Forester
         run: |
+          # Running as root, opam commands should work fine.
+          # Some opam setups might complain about running as root, but usually it's for safety
+          # in interactive use, less so in CI where the container is ephemeral.
           opam update
           opam install forester -y --no-depexts
           forester --version
