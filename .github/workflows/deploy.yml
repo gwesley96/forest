@@ -3,37 +3,24 @@ name: Build and Deploy Forester Site to /files
 on:
   push:
     branches:
-      - main
+      - main # 1. IMPORTANT: Change 'main' if your source repo's default branch is different
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    container:
-      image: ocaml/opam:ubuntu-ocaml-4.14
-      # Explicitly set HOME for the container.
-      # Using /home/opam is a common default for opam user in these containers.
-      # If the user is root, /root would be appropriate.
-      # We can also try a generic writable path like /tmp if /home/opam doesn't work.
-      options: --user root # Run as root within the container initially for broadest permissions
-                           # We can also try: -e HOME=/home/opam
-                           # Or if the default user in the container isn't 'opam',
-                           # this might need adjustment, but root usually solves EACCES.
+    container: ocaml/opam:ubuntu-ocaml-4.14
 
     steps:
+      - name: Ensure Correct Permissions
+        run: |
+          # Set permissions for GitHub Actions directories
+          sudo chmod -R 777 /__w/_temp /__w/_actions
+
       - name: Checkout Source Code
         uses: actions/checkout@v4
-        # No 'with: user: root' or similar needed here as the container options handle it.
-
-      # If running as root inside the container, we might need to ensure opam commands
-      # are run with appropriate permissions or as the 'opam' user if it exists.
-      # However, for simplicity and to overcome EACCES, let's first see if root works for all steps.
 
       - name: Update OPAM and Install Forester
         run: |
-          # If we are root, opam commands might need --allow-root or similar,
-          # or we might switch to the 'opam' user if it exists.
-          # For now, let's assume opam handles being run by root gracefully or
-          # the ocaml/opam entrypoint/setup scripts manage this.
           opam update
           opam install forester -y --no-depexts
           forester --version
