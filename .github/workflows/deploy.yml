@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ocaml/opam:ubuntu-ocaml-4.14
-      options: --user root # Run the container as the root user
+      options: --user root
 
     steps:
       - name: Checkout Source Code
@@ -18,23 +18,23 @@ jobs:
 
       - name: Initialize OPAM, Update, and Install Forester
         run: |
-          # Initialize OPAM for the root user since we are running as root.
-          # --disable-sandboxing is often needed in CI environments.
-          # -a automatically selects the default OCaml compiler.
-          # -y automatically confirms prompts.
-          opam init --disable-sandboxing -a -y
-
-          # The 'opam init' command should have updated the environment,
-          # but 'eval $(opam env)' ensures it's correctly sourced for this shell session.
+          # Initialize OPAM for the root user, trying to use the existing system OCaml
+          # This assumes the container has OCaml 4.14.x in PATH.
+          opam init --disable-sandboxing --reinit --bare --set-root -y
+          
+          # Create a switch using the system OCaml compiler
+          # The `ocaml-system` package in opam refers to the system-installed OCaml
+          opam switch create default system -y
+          
           eval $(opam env)
-
           opam update
-          opam install forester -y --no-depexts # --no-depexts is a precaution
+          
+          # Install Forester
+          opam install forester -y --no-depexts 
           forester --version
 
       - name: Build Site with Forester
         run: |
-          # Ensure the OPAM environment is sourced for this step too
           eval $(opam env)
           forester build forest.toml
 
