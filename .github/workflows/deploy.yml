@@ -9,36 +9,29 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     container:
-      # Use an official OCaml/OPAM Docker image with OCaml 5.1 (a common recent version)
       image: ocaml/opam:ubuntu-ocaml-5.1
       options: --user root
 
     steps:
-      - name: Checkout Source Code
+      - name: Checkout Source Code (including submodules)
         uses: actions/checkout@v4
+        with:
+          submodules: 'recursive' # Explicitly fetch submodules
 
       - name: Initialize OPAM, Create OCaml 5.1 Switch, Update, and Install Forester
         run: |
-          # Ensure opam init runs non-interactively regarding shell modifications
           echo -e 'n\nN' | opam init --disable-sandboxing --reinit --bare -y
-          
-          # Explicitly create a switch named 'default' using OCaml 5.1.1 (adjust patch if needed)
-          # This should align with Forester's requirements.
-          # This step will likely take time as it compiles OCaml 5.1.1 if not perfectly cached.
           opam switch create default ocaml-base-compiler.5.1.1 -y
-          
           eval $(opam env)
           opam update
-          
-          # Install Forester
-          # With OCaml 5.1.1, Forester's dependencies should resolve.
           opam install forester -y
-          
           forester --version
 
       - name: Build Site with Forester
         run: |
           eval $(opam env)
+          # List files to help debug asset path issues
+          ls -Rla
           forester build forest.toml
 
       - name: Deploy to gwesley96.github.io/files
