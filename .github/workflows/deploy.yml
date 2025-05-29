@@ -17,11 +17,11 @@ jobs:
         #   submodules: 'recursive'
 
       - name: Set up OCaml
-              uses: ocaml/setup-ocaml@v2
-              with:
-                ocaml-compiler: '5.1.1' # Or your required OCaml version
-                opam-depext: false     # Prevent setup-ocaml from trying to install system packages like 'darcs'
-                # opam-pin: false      # You can also keep this if you had it, or test without it first once depext is false.
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: '5.1.1' # Or your required OCaml version
+          opam-depext: false     # Prevent setup-ocaml from trying to install system packages like 'darcs'
+          # opam-pin: false      # You can also keep this if you had it, or test without it first once depext is false.
                                 # The darcs issue is the primary blocker right now.
 
       - name: Cache OPAM switch and Forester installation
