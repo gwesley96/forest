@@ -49,7 +49,8 @@ jobs:
           # Basic init: ensure OPAM root exists and repositories are up-to-date.
           # --disable-sandboxing is often needed in CI.
           # --reinit ensures it works if an OPAMROOT exists (e.g. from cache) but needs refreshing.
-          opam init --reinit --disable-sandboxing --yes
+          # --bare prevents creation of a default switch, so we can create our own with the right version
+          opam init --reinit --disable-sandboxing --bare --yes
 
           # Source the basic opam environment after init (sets OPAMROOT mainly for the opam command)
           # This also makes 'opam' command available if it wasn't in PATH.
