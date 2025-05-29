@@ -3,45 +3,49 @@ name: Build and Deploy Forester Site to /files
 on:
   push:
     branches:
-      - main
+      - main # 1. IMPORTANT: Change 'main' if your source repo's default branch is different
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    # Use an official OCaml/OPAM Docker image with OCaml 4.14.
+    # This provides a ready-to-use OCaml and OPAM environment.
+    container: ocaml/opam:ubuntu-ocaml-4.14
 
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Set up OCaml (manual opam init)
-        uses: ocaml/setup-ocaml@v2
-        with:
-          ocaml-compiler: '4.14.0' # Pinning to a specific common version
+      # The ocaml/opam Docker images come with OPAM initialized and OCaml ready.
+      # The default user in the container might be 'opam' or 'root'.
+      # `eval $(opam env)` might not be needed if the entrypoint/shell configures it.
 
-      - name: Initialize OPAM and Install Forester
+      - name: Update OPAM and Install Forester
         run: |
-          # opam init can sometimes ask for confirmation, --disable-sandboxing is often needed in CI
-          # The 'eval $(opam env)' configures the shell environment.
-          opam init --disable-sandboxing --reinit -y
-          eval $(opam env)
+          # Update OPAM package list
           opam update
-          # Now install Forester, explicitly saying no to depext for this package installation
-          opam install forester --no-depexts -y
+          # Install Forester.
+          # Using --no-depexts as a precaution if Forester's opam file lists
+          # system deps that might not be in this specific container or are problematic.
+          # However, this container should be quite comprehensive for OCaml builds.
+          opam install forester -y --no-depexts
+          # Verify installation
           forester --version
 
       - name: Build Site with Forester
-        run: |
-          eval $(opam env) # Ensure OCaml/Forester environment is active
-          forester build forest.toml
+        # Assumes your forest.toml is at the root of your repository.
+        # The OPAM environment should be active in the container's shell.
+        run: forester build forest.toml
 
       - name: Deploy to gwesley96.github.io/files
         uses: peaceiris/actions-gh-pages@v4
         with:
-          personal_token: ${{ secrets.GH_PAGES_PAT }}
-          external_repository: gwesley96/gwesley96.github.io
-          publish_branch: main
+          personal_token: ${{ secrets.GH_PAGES_PAT }}        # Your PAT secret
+          external_repository: gwesley96/gwesley96.github.io # Your target GitHub Pages site
+          publish_branch: main                               # Branch on your Pages site to deploy to
+          # Ensure this 'publish_dir' matches Forester's output directory
           publish_dir: ./output
-          target_dir: files
+          target_dir: files                                  # This puts content into the 'files/' subdirectory
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
           commit_message: Deploy to /files (automated build from source repo)
