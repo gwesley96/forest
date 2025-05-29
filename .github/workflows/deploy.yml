@@ -3,49 +3,52 @@ name: Build and Deploy Forester Site to /files
 on:
   push:
     branches:
-      - main # 1. IMPORTANT: Change 'main' if your source repo's default branch is different
+      - main
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    # Use an official OCaml/OPAM Docker image with OCaml 4.14.
-    # This provides a ready-to-use OCaml and OPAM environment.
-    container: ocaml/opam:ubuntu-ocaml-4.14
+    container:
+      image: ocaml/opam:ubuntu-ocaml-4.14
+      # Explicitly set HOME for the container.
+      # Using /home/opam is a common default for opam user in these containers.
+      # If the user is root, /root would be appropriate.
+      # We can also try a generic writable path like /tmp if /home/opam doesn't work.
+      options: --user root # Run as root within the container initially for broadest permissions
+                           # We can also try: -e HOME=/home/opam
+                           # Or if the default user in the container isn't 'opam',
+                           # this might need adjustment, but root usually solves EACCES.
 
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
+        # No 'with: user: root' or similar needed here as the container options handle it.
 
-      # The ocaml/opam Docker images come with OPAM initialized and OCaml ready.
-      # The default user in the container might be 'opam' or 'root'.
-      # `eval $(opam env)` might not be needed if the entrypoint/shell configures it.
+      # If running as root inside the container, we might need to ensure opam commands
+      # are run with appropriate permissions or as the 'opam' user if it exists.
+      # However, for simplicity and to overcome EACCES, let's first see if root works for all steps.
 
       - name: Update OPAM and Install Forester
         run: |
-          # Update OPAM package list
+          # If we are root, opam commands might need --allow-root or similar,
+          # or we might switch to the 'opam' user if it exists.
+          # For now, let's assume opam handles being run by root gracefully or
+          # the ocaml/opam entrypoint/setup scripts manage this.
           opam update
-          # Install Forester.
-          # Using --no-depexts as a precaution if Forester's opam file lists
-          # system deps that might not be in this specific container or are problematic.
-          # However, this container should be quite comprehensive for OCaml builds.
           opam install forester -y --no-depexts
-          # Verify installation
           forester --version
 
       - name: Build Site with Forester
-        # Assumes your forest.toml is at the root of your repository.
-        # The OPAM environment should be active in the container's shell.
         run: forester build forest.toml
 
       - name: Deploy to gwesley96.github.io/files
         uses: peaceiris/actions-gh-pages@v4
         with:
-          personal_token: ${{ secrets.GH_PAGES_PAT }}        # Your PAT secret
-          external_repository: gwesley96/gwesley96.github.io # Your target GitHub Pages site
-          publish_branch: main                               # Branch on your Pages site to deploy to
-          # Ensure this 'publish_dir' matches Forester's output directory
+          personal_token: ${{ secrets.GH_PAGES_PAT }}
+          external_repository: gwesley96/gwesley96.github.io
+          publish_branch: main
           publish_dir: ./output
-          target_dir: files                                  # This puts content into the 'files/' subdirectory
+          target_dir: files
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
           commit_message: Deploy to /files (automated build from source repo)
