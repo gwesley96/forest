@@ -16,19 +16,21 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Initialize OPAM, Update, and Install Forester
+      - name: Initialize OPAM, Create Switch, Update, and Install Forester
         run: |
-          # Initialize OPAM for the root user, without creating a switch immediately
-          # Removed --set-root as it's not a valid option
-          opam init --disable-sandboxing --reinit --bare -y
+          # Ensure opam init runs non-interactively regarding shell modifications
+          # Pipe 'n' and then 'N' to the prompts for modifying .profile and setting up hooks
+          # --disable-sandboxing for CI, --reinit for robustness
+          echo -e 'n\nN' | opam init --disable-sandboxing --reinit --bare -y
           
-          # Explicitly create a switch named 'default' using the system-provided OCaml
-          opam switch create default system -y
+          # Explicitly create a switch named 'default' using OCaml 4.14.2 (adjust patch if needed)
+          # This refers to the compiler package itself.
+          opam switch create default ocaml-base-compiler.4.14.2 -y
           
           eval $(opam env)
           opam update
           
-          # Install Forester.
+          # Install Forester
           opam install forester -y
           
           forester --version
