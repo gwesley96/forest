@@ -67,7 +67,7 @@ jobs:
             eval $(opam env --switch="${TARGET_SWITCH_NAME}" --set-switch)
             
             # Get the compiler package of the existing switch using opam list
-            EXISTING_COMPILER=$(opam list --installed --short | grep -E "^ocaml-base-compiler\." | head -1 || echo "")
+            EXISTING_COMPILER=$(opam list --installed --short | grep -E "^ocaml-base-compiler" | head -1 || echo "")
 
             if [ "$EXISTING_COMPILER" = "$DESIRED_OCAML_COMPILER" ]; then
               echo "Switch '${TARGET_SWITCH_NAME}' is already correctly configured with ${DESIRED_OCAML_COMPILER}."
@@ -99,7 +99,7 @@ jobs:
 
           # Final verification that the setup is as expected
           CURRENT_SWITCH=$(opam var switch)
-          CURRENT_COMPILER=$(opam list --installed --short | grep -E "^ocaml-base-compiler\." | head -1 || echo "")
+          CURRENT_COMPILER=$(opam list --installed --short | grep -E "^ocaml-base-compiler" | head -1 || echo "")
           
           if [ "$CURRENT_SWITCH" != "${TARGET_SWITCH_NAME}" ] || \
              [ "$CURRENT_COMPILER" != "${DESIRED_OCAML_COMPILER}" ]; then
