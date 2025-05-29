@@ -5,7 +5,7 @@ theme = "theme"                      # The directory in which your theme is stor
 
 
 [forest]
-trees = ["trees", "macros", "role"]
+trees = ["trees", "macros", "blog"]
 assets = ["assets"]
 theme = "theme"
 home = "home"
