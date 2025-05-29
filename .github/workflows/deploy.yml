@@ -16,6 +16,9 @@ jobs:
     steps:
       - name: Checkout Forester source code
         uses: actions/checkout@v4
+        # If your Forester project uses Git submodules (e.g., for its theme):
+        # with:
+        #   submodules: 'recursive'
 
       - name: Cache OPAM packages for root user
         id: cache-opam
@@ -29,29 +32,37 @@ jobs:
       - name: Set up OPAM, Install/Update Forester
         shell: bash
         run: |
-          set -e 
+          set -e # Exit immediately if a command exits with a non-zero status
+
           # Explicitly define OPAMROOT for this script and for GITHUB_ENV
-          export OPAM_ROOT_DIR="/root/.opam"
-          echo "OPAM_ROOT_DIR=${OPAM_ROOT_DIR}" >> $GITHUB_ENV # For subsequent steps
+          # This variable name OPAM_ROOT_DIR is what subsequent steps will use from GITHUB_ENV
+          export LOCAL_OPAM_ROOT_DIR="/root/.opam"
+          echo "OPAM_ROOT_DIR=${LOCAL_OPAM_ROOT_DIR}" >> $GITHUB_ENV
 
-          echo "Initializing OPAM for root (non-interactively) at ${OPAM_ROOT_DIR}..."
-          echo -e "n\nn" | opam init --root="${OPAM_ROOT_DIR}" --reinit --bare --disable-sandboxing --yes
+          echo "Initializing OPAM for root at ${LOCAL_OPAM_ROOT_DIR} (using --auto-setup)..."
+          # --auto-setup is designed for non-interactive use and should handle shell config quietly.
+          opam init --root="${LOCAL_OPAM_ROOT_DIR}" --reinit --disable-sandboxing --auto-setup
           
-          echo "Setting up OCaml switch 'default' (OCaml 5.1.1) for root at ${OPAM_ROOT_DIR}..."
+          echo "Setting up OCaml switch 'default' (OCaml 5.1.1) at ${LOCAL_OPAM_ROOT_DIR}..."
+          # Source env after init to make current OPAMROOT active for switch commands for this step
+          eval $(opam env --root="${LOCAL_OPAM_ROOT_DIR}" --set-root) 
+
           # Create 'default' switch if it doesn't exist, then ensure it's set.
-          if ! opam switch list --root="${OPAM_ROOT_DIR}" | grep -q "^default "; then
-            opam switch create default ocaml-base-compiler.5.1.1 --root="${OPAM_ROOT_DIR}" --yes
+          if ! opam switch list | grep -q "^default "; then
+            opam switch create default ocaml-base-compiler.5.1.1 --yes
           fi
-          opam switch set default --root="${OPAM_ROOT_DIR}"
-          echo "OPAM_SWITCH_NAME=default" >> $GITHUB_ENV # For subsequent steps
+          opam switch set default
+          # For subsequent steps, record the switch name
+          echo "OPAM_SWITCH_NAME=default" >> $GITHUB_ENV
 
-          # Set up the environment for the CURRENT step using the explicit root and switch
-          eval $(opam env --root="${OPAM_ROOT_DIR}" --switch=default --set-switch)
+          echo "Setting OPAM environment variables (including switch) for this current step..."
+          # This final eval sets up PATH etc. for the current switch for THIS script block.
+          eval $(opam env --root="${LOCAL_OPAM_ROOT_DIR}" --switch=default --set-switch)
 
-          echo "Verifying OCaml/OPAM versions (after env setup)..."
+          echo "Verifying OCaml/OPAM versions (after full env setup for this step)..."
           opam --version
           ocaml --version
-          echo "OPAM Root Directory from 'opam var root' is: $(opam var root)"
+          echo "OPAM Root Directory from 'opam var root' is: $(opam var root)" # Should now work
           
           echo "Updating OPAM repositories..."
           opam update -u --yes
@@ -63,7 +74,7 @@ jobs:
         shell: bash 
         run: |
           echo "Sourcing OPAM environment for verification..."
-          # Use OPAM_ROOT_DIR and OPAM_SWITCH_NAME from GITHUB_ENV
+          # Use OPAM_ROOT_DIR and OPAM_SWITCH_NAME from GITHUB_ENV (set in the previous step)
           eval $(opam env --root="${OPAM_ROOT_DIR}" --switch="${OPAM_SWITCH_NAME}" --set-switch)
           echo "Updated PATH is: $PATH"
           which forester
@@ -76,6 +87,7 @@ jobs:
           # Use OPAM_ROOT_DIR and OPAM_SWITCH_NAME from GITHUB_ENV
           eval $(opam env --root="${OPAM_ROOT_DIR}" --switch="${OPAM_SWITCH_NAME}" --set-switch)
           echo "Updated PATH is: $PATH"
+          # Ensure forest.toml is at the root of your project, or adjust path if needed.
           forester build forest.toml 
           echo "Forester build complete. Output should be in ./output/"
           echo "Contents of ./output directory:"
@@ -86,10 +98,11 @@ jobs:
         with:
           personal_token: ${{ secrets.GH_PAGES_PAT }} 
           external_repository: gwesley96/gwesley96.github.io
+          # IMPORTANT: Set publish_branch to your gwesley96.github.io GitHub Pages branch (e.g., main, master, gh-pages)
           publish_branch: master 
-          publish_dir: ./output
-          destination_dir: tytytyty 
-          keep_files: true
+          publish_dir: ./output    # Directory created by 'forester build'
+          destination_dir: tytytyty  # Corrected parameter name
+          keep_files: true         # Keeps other files in gwesley96.github.io untouched
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
           commit_message: 'Deploy Forester output to /tytytyty [CI]'
