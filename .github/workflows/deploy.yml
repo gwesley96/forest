@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ocaml/opam:ubuntu-ocaml-5.1
-      options: --user root
+      options: --user root # Note: Running as root has security implications. Consider if necessary.
 
     steps:
       - name: Checkout Source Code
@@ -56,9 +56,12 @@ jobs:
         with:
           personal_token: ${{ secrets.GH_PAGES_PAT }}
           external_repository: gwesley96/gwesley96.github.io
-          publish_branch: master
-          publish_dir: ./output # This must be where Forester actually puts its final site files
+          publish_branch: master # Or main, depending on your GitHub Pages source branch for gwesley96.github.io
+          publish_dir: ./output
           target_dir: files
+          keep_files: true # <--- THIS IS THE CRUCIAL ADDITION
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
           commit_message: Deploy to /files (automated build from source repo)
+          # force_orphan: false # Default is false, but explicitly setting it can sometimes help if keep_files isn't enough
+          # allow_empty_commit: false # Default, usually fine
