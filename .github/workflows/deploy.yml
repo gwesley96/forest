@@ -3,66 +3,82 @@ name: Build and Deploy Forester Output
 on:
   push:
     branches:
-      - main # This triggers the workflow on pushes to the 'main' branch of THIS Forester project repository
+      - main # In your Forester project repository
 
 jobs:
   build-and-deploy-forester:
     runs-on: ubuntu-latest
 
     container:
-      image: ocaml/opam:ubuntu-ocaml-5.1 # Use an official OCaml/OPAM Docker image
-      options: --user root # Runs commands as root user inside the container
+      image: ocaml/opam:ubuntu-ocaml-5.1
+      options: --user root # Continue running as root
 
     steps:
       - name: Checkout Forester source code
         uses: actions/checkout@v4
-        # If your Forester project uses Git submodules (e.g., for its theme):
-        # with:
-        #   submodules: 'recursive'
 
-      - name: Cache OPAM packages
+      - name: Cache OPAM packages for root user
         id: cache-opam
         uses: actions/cache@v4
         with:
-          path: /root/.opam # Cache the OPAM root for the root user
-          # Corrected key using newline-separated patterns for hashFiles to avoid comma validation error
+          path: /root/.opam # OPAM root for the root user
           key: ${{ runner.os }}-ocaml5.1-opam-root-${{ hashFiles('**/forest.toml\n**/*.opam\n**/opam.lock') }}
           restore-keys: |
             ${{ runner.os }}-ocaml5.1-opam-root-
 
-      - name: Set up OPAM, Install/Update Forester & Dependencies
+      - name: Set up OPAM, Install/Update Forester
         shell: bash
         run: |
           set -e # Exit immediately if a command exits with a non-zero status
 
-          echo "Initializing OPAM and OCaml Switch..."
-          # Ensure OPAM root directory is owned by the 'opam' user
-          chown -R opam:opam /home/opam/.opam || true
+          echo "OPAM_ROOT is explicitly /root/.opam for this session"
+          export OPAMROOT="/root/.opam"
 
-          su opam -c "
-            opam init --bare --disable-sandboxing --yes
-            if ! opam switch list | grep -q 'default'; then
-              opam switch create default ocaml-base-compiler.5.1.1 --yes
-            fi
-            opam switch set default
-            eval \$(opam env)
-            opam --version
-            ocaml --version
-            opam update --yes
-            opam install forester --yes --depexts
-          "  
+          echo "Initializing OPAM for root (non-interactively)..."
+          # Use echo to answer 'n' to shell setup prompts.
+          # --reinit --bare should make it mostly non-interactive with --yes.
+          # The container's OPAMYES=1 should make --yes implicit for most things.
+          echo -e "n\nn" | opam init --reinit --bare --disable-sandboxing --yes
+          
+          echo "Setting up OCaml switch for root..."
+          # Create 'default' switch for OCaml 5.1.1 if it doesn't exist from cache, then ensure it's set.
+          if ! opam switch list | grep -q "^default "; then
+            opam switch create default ocaml-base-compiler.5.1.1 --yes
+          fi
+          opam switch set default
+
+          echo "Setting OPAM environment variables for subsequent steps..."
+          # Use --set-root to ensure OPAMROOT is part of the env script
+          # Use --set-switch to ensure the switch context is part of the env script
+          # Output these vars to $GITHUB_ENV so subsequent steps in this job inherit them.
+          opam env --set-root --set-switch >> $GITHUB_ENV
+          
+          # Also eval for the current step
+          eval $(opam env --set-root --set-switch)
+
+          echo "Verifying OCaml/OPAM versions (after env setup)..."
+          opam --version
+          ocaml --version
+          echo "OPAM Root Directory from 'opam var root' is: $(opam var root)"
+          
+          echo "Updating OPAM repositories..."
+          opam update -u --yes
+          
+          echo "Installing Forester and its dependencies (using cache if available)..."
+          # Corrected: removed --depexts flag. 
+          # OPAM will handle system dependencies if needed and declared by Forester's package.
+          opam install forester --yes --show-actions
 
       - name: Verify Forester Installation
-        shell: bash # Ensures 'eval' works
+        shell: bash 
         run: |
-          eval $(opam env --root=/root/.opam --set-switch) # Set environment for this step
+          # Env vars from GITHUB_ENV should make 'forester' available
           forester --version
 
       - name: Build Forester Site
-        shell: bash # Ensures 'eval' works
+        shell: bash 
         run: |
-          eval $(opam env --root=/root/.opam --set-switch) # Set environment for this step
-          # Ensure forest.toml is at the root of your project, or adjust path if needed.
+          # Env vars from GITHUB_ENV should make 'forester' available
           forester build forest.toml 
           echo "Forester build complete. Output should be in ./output/"
           echo "Contents of ./output directory:"
@@ -71,13 +87,12 @@ jobs:
       - name: Deploy 'output' directory to gwesley96.github.io/tytytyty
         uses: peaceiris/actions-gh-pages@v4
         with:
-          personal_token: ${{ secrets.GH_PAGES_PAT }} # Must be in THIS Forester project's secrets
+          personal_token: ${{ secrets.GH_PAGES_PAT }} 
           external_repository: gwesley96/gwesley96.github.io
-          # IMPORTANT: Set publish_branch to your gwesley96.github.io GitHub Pages branch (e.g., main, master, gh-pages)
           publish_branch: master 
-          publish_dir: ./output    # Directory created by 'forester build'
-          destination_dir: tytytyty  # Corrected parameter name
-          keep_files: true         # Keeps other files in gwesley96.github.io untouched
+          publish_dir: ./output
+          destination_dir: tytytyty 
+          keep_files: true
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
           commit_message: 'Deploy Forester output to /tytytyty [CI]'
