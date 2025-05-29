@@ -3,69 +3,77 @@ name: Build and Deploy Forester Output
 on:
   push:
     branches:
-      - main
+      - main # This triggers the workflow on pushes to the 'main' branch of THIS Forester project repository
 
 jobs:
   build-and-deploy-forester:
     runs-on: ubuntu-latest
+
     container:
-      image: ocaml/opam:ubuntu-ocaml-5.1
-      options: --user root
+      image: ocaml/opam:ubuntu-ocaml-5.1 # Use an official OCaml/OPAM Docker image
+      options: --user root # Runs commands as root user inside the container
 
     steps:
       - name: Checkout Forester source code
         uses: actions/checkout@v4
+        # If your Forester project uses Git submodules (e.g., for its theme):
+        # with:
+        #   submodules: 'recursive'
 
       - name: Cache OPAM packages
         id: cache-opam
         uses: actions/cache@v4
         with:
-          path: /root/.opam
-          key: ${{ runner.os }}-ocaml5.1-opam-root-${{ hashFiles('**/forest.toml', '**/*.opam', '**/opam.lock') }}
+          path: /root/.opam # Cache the OPAM root for the root user
+          # Corrected key using newline-separated patterns for hashFiles to avoid comma validation error
+          key: ${{ runner.os }}-ocaml5.1-opam-root-${{ hashFiles('**/forest.toml\n**/*.opam\n**/opam.lock') }}
           restore-keys: |
             ${{ runner.os }}-ocaml5.1-opam-root-
 
-            - name: Set up OPAM, Install/Update Forester & Dependencies
-        shell: bash # Ensures subcommands run in the same shell context for `eval`
+      # This step initializes OPAM and installs Forester. It benefits from the cache.
+      - name: Set up OPAM, Install/Update Forester & Dependencies
+        shell: bash # Ensures 'eval' and other commands work as expected in the same context
         run: |
-          set -e # Exit immediately if a command exits with a non-zero status.
+          set -e # Exit immediately if a command exits with a non-zero status
 
-          echo "Initializing OPAM and OCaml Switch..."
-          # Initialize OPAM if it's not already initialized
-          if [ ! -d "/root/.opam" ]; then
-            opam init --root=/root/.opam --bare --disable-sandboxing --yes
-          else
-            opam init --root=/root/.opam --reinit --bare --disable-sandboxing --yes
+          echo "Initializing OPAM and OCaml Switch for root user..."
+          # Initialize OPAM at /root/.opam. 
+          # --reinit --bare should be safe even if /root/.opam was restored from cache.
+          opam init --root=/root/.opam --reinit --bare --disable-sandboxing --yes
+          
+          # Create 'default' switch for OCaml 5.1.1 if it doesn't exist, or ensure it's set.
+          # Check if switch exists before trying to create, then ensure it's set.
+          if ! opam switch list --root=/root/.opam | grep -q "default"; then
+            opam switch create default ocaml-base-compiler.5.1.1 --root=/root/.opam --yes
           fi
-
-          # Create or ensure the OCaml 5.1.1 switch exists.
-          opam switch list --root=/root/.opam | grep -q "default" || opam switch create default ocaml-base-compiler.5.1.1 --root=/root/.opam --yes
           opam switch set default --root=/root/.opam
 
-          # Set up the environment for OPAM for subsequent commands in this step
+          # Set up the environment for OPAM for all subsequent commands in this run block
           eval $(opam env --root=/root/.opam --set-switch)
-
+          
           echo "Verifying OCaml/OPAM versions..."
           opam --version
           ocaml --version
-          echo "OPAM Root Directory is: $(opam var root)"
-
+          echo "OPAM Root Directory is: $(opam var root)" # Should output /root/.opam
+          
           echo "Updating OPAM repositories..."
-          opam update -u --yes
-
-          echo "Installing Forester and its dependencies (will use cache if possible)..."
+          opam update -u --yes # Update package lists and upgrade existing packages
+          
+          echo "Installing Forester and its dependencies (using cache if available)..."
+          # --depexts tells OPAM to handle system dependencies for Forester.
           opam install forester --yes --depexts --show-actions
 
       - name: Verify Forester Installation
-        shell: bash # Use bash and eval here too
+        shell: bash # Ensures 'eval' works
         run: |
-          eval $(opam env --root=/root/.opam --set-switch)
+          eval $(opam env --root=/root/.opam --set-switch) # Set environment for this step
           forester --version
 
       - name: Build Forester Site
-        shell: bash # Use bash and eval here too
+        shell: bash # Ensures 'eval' works
         run: |
-          eval $(opam env --root=/root/.opam --set-switch)
+          eval $(opam env --root=/root/.opam --set-switch) # Set environment for this step
+          # Ensure forest.toml is at the root of your project, or adjust path if needed.
           forester build forest.toml 
           echo "Forester build complete. Output should be in ./output/"
           echo "Contents of ./output directory:"
@@ -74,12 +82,13 @@ jobs:
       - name: Deploy 'output' directory to gwesley96.github.io/tytytyty
         uses: peaceiris/actions-gh-pages@v4
         with:
-          personal_token: ${{ secrets.GH_PAGES_PAT }}
+          personal_token: ${{ secrets.GH_PAGES_PAT }} # Must be in THIS Forester project's secrets
           external_repository: gwesley96/gwesley96.github.io
+          # IMPORTANT: Set publish_branch to your gwesley96.github.io GitHub Pages branch (e.g., main, master, gh-pages)
           publish_branch: master 
-          publish_dir: ./output
-          destination_dir: tytytyty
-          keep_files: true
+          publish_dir: ./output    # Directory created by 'forester build'
+          destination_dir: tytytyty  # Corrected parameter name
+          keep_files: true         # Keeps other files in gwesley96.github.io untouched
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
           commit_message: 'Deploy Forester output to /tytytyty [CI]'
