@@ -1,60 +1,101 @@
+name: Build and Deploy Forester Output
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy-forester:
+    runs-on: ubuntu-latest
+
+    container:
+      image: ocaml/opam:ubuntu-ocaml-5.1
+      options: --user root
+
+    steps:
+      - name: Checkout Forester source code
+        uses: actions/checkout@v4
+
+      - name: Cache OPAM packages for root user
+        id: cache-opam
+        uses: actions/cache@v4
+        with:
+          path: /root/.opam
+          key: ${{ runner.os }}-ocaml5.1-opam-root-${{ hashFiles('**/forest.toml', '**/*.opam', '**/opam.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-ocaml5.1-opam-root-
+
       - name: Set up OPAM, Install/Update Forester
         shell: bash
         env:
-          # Define OPAM_ROOT_DIR for this step's script block
           OPAM_ROOT_DIR_FOR_SETUP: /root/.opam
         run: |
-          set -e # Exit immediately if a command exits with a non-zero status
-
-          # Use the step-level env var for OPAMROOT within this script
+          set -e
           export OPAMROOT="${OPAM_ROOT_DIR_FOR_SETUP}"
-          # For subsequent steps, write this to GITHUB_ENV
           echo "OPAM_ROOT_DIR=${OPAMROOT}" >> $GITHUB_ENV
 
-          DESIRED_OCAML_COMPILER="ocaml-base-compiler.5.1.1"
-          # This will be the name of the switch we intend to use.
-          # `opam init <compiler> --auto-setup` typically creates a switch named 'default'.
-          TARGET_SWITCH_NAME="default"
+          echo "Initializing OPAM for root at ${OPAMROOT}..."
+          opam init --reinit --disable-sandboxing --auto-setup --yes
 
-          echo "Initializing OPAM for root at ${OPAMROOT} with ${DESIRED_OCAML_COMPILER} (using --auto-setup)..."
-          # Tell opam init to use the desired OCaml version for the switch it creates/configures.
-          # --reinit ensures it works even if an OPAMROOT exists (e.g. from cache).
-          # --auto-setup should handle non-interactive setup, including creating a switch
-          # (typically 'default') with the specified compiler.
-          opam init "${DESIRED_OCAML_COMPILER}" --reinit --disable-sandboxing --auto-setup --yes
+          echo "Setting up OCaml switch 'default' (OCaml 5.1.1)..."
+          eval $(opam env)
 
-          echo "Setting up OCaml switch '${TARGET_SWITCH_NAME}' (using ${DESIRED_OCAML_COMPILER}) at ${OPAMROOT}..."
-          # Source env after init to make current OPAMROOT active for switch commands for this step
-          eval $(opam env --set-root) # Uses OPAMROOT from current env
+          if ! opam switch list | grep -q "^default "; then
+            opam switch create default ocaml-base-compiler.5.1.1 --yes
+          fi
+          opam switch set default
+          echo "OPAM_SWITCH_NAME=default" >> $GITHUB_ENV
 
-          # `opam init` with a compiler and --auto-setup should have created and set up
-          # a switch (usually 'default') with that compiler. We just ensure it's selected.
-          # If `opam init` named the switch something else (e.g., "5.1.1" instead of "default"),
-          # this would need adjustment, but 'default' is the most common behavior.
-          opam switch set "${TARGET_SWITCH_NAME}" # Ensure this switch is the current one.
+          echo "Setting full OPAM environment variables for this current step..."
+          eval $(opam env --switch=default --set-switch)
 
-          # For subsequent steps, record the switch name
-          echo "OPAM_SWITCH_NAME=${TARGET_SWITCH_NAME}" >> $GITHUB_ENV
-
-          echo "Setting full OPAM environment variables (including switch) for this current step..."
-          # This final eval sets up PATH etc. for the TARGET_SWITCH_NAME for THIS script block.
-          eval $(opam env --switch="${TARGET_SWITCH_NAME}" --set-switch) # Uses OPAMROOT from current env
-
-          echo "Verifying OCaml/OPAM versions (after full env setup for this step)..."
+          echo "Verifying OCaml/OPAM versions..."
           opam --version
           ocaml --version
-          echo "OPAM Root Directory from 'opam var root' is: $(opam var root)"
-          echo "Current OPAM switch from 'opam var switch' is: $(opam var switch)"
-          # Verify that the active switch is indeed using the desired OCaml compiler
-          if ! opam switch show "${TARGET_SWITCH_NAME}" | grep -q "${DESIRED_OCAML_COMPILER}"; then
-            echo "Error: Switch '${TARGET_SWITCH_NAME}' is not using ${DESIRED_OCAML_COMPILER}!"
-            echo "Switch details:"
-            opam switch show "${TARGET_SWITCH_NAME}"
-            exit 1
-          fi
+          echo "OPAM Root Directory: $(opam var root)"
+          echo "Current OPAM switch: $(opam var switch)"
 
           echo "Updating OPAM repositories..."
           opam update -u --yes
 
-          echo "Installing Forester and its dependencies (using cache if available)..."
+          echo "Installing Forester and its dependencies..."
           opam install forester --yes --show-actions
+
+      - name: Verify Forester Installation
+        shell: bash
+        run: |
+          export OPAMROOT="${OPAM_ROOT_DIR}"
+          export OPAMSWITCH="${OPAM_SWITCH_NAME}"
+          eval $(opam env --set-switch)
+
+          echo "Updated PATH: $PATH"
+          echo "Found Forester at: $(which forester || echo 'Forester not found in PATH')"
+          forester --version
+
+      - name: Build Forester Site
+        shell: bash
+        run: |
+          echo "Sourcing OPAM environment for build..."
+          export OPAMROOT="${OPAM_ROOT_DIR}"
+          export OPAMSWITCH="${OPAM_SWITCH_NAME}"
+          eval $(opam env --set-switch)
+
+          echo "Updated PATH: $PATH"
+          forester build forest.toml
+          echo "Forester build complete. Output should be in ./output/"
+          echo "Contents of ./output directory:"
+          ls -la ./output
+
+      - name: Deploy 'output' directory to gwesley96.github.io/tytytyty
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.GH_PAGES_PAT }}
+          external_repository: gwesley96/gwesley96.github.io
+          publish_branch: master
+          publish_dir: ./output
+          destination_dir: tytytyty
+          keep_files: true
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: 'Deploy Forester output to /tytytyty [CI]'
