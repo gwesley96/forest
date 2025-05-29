@@ -1,67 +1,60 @@
-name: Build and Deploy Forester Site to /files
+name: Build and Deploy Forester Output
 
 on:
   push:
     branches:
-      - main
+      - main # This triggers the workflow on pushes to the 'main' branch of THIS Forester project repository
 
 jobs:
-  build-and-deploy:
+  build-and-deploy-forester:
     runs-on: ubuntu-latest
-    container:
-      image: ocaml/opam:ubuntu-ocaml-5.1
-      options: --user root # Note: Running as root has security implications. Consider if necessary.
 
     steps:
-      - name: Checkout Source Code
+      - name: Checkout Forester source code
         uses: actions/checkout@v4
+        # If your Forester project uses Git submodules (e.g., for themes), add:
+        # with:
+        #   submodules: 'recursive'
 
-      - name: Initialize OPAM, Create OCaml 5.1 Switch, Update, and Install Forester
+      - name: Set up OCaml
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: '5.1.1' # Or the OCaml version Forester requires
+
+      - name: Cache OPAM switch and Forester installation
+        id: cache-opam
+        uses: actions/cache@v4
+        with:
+          path: ~/.opam # Cache the OPAM root, includes installed packages
+          # Key changes if OCaml version or key Forester project files change
+          key: ${{ runner.os }}-ocaml-${{ steps.setup-ocaml.outputs.ocaml-version }}-opam-${{ hashFiles('**/forest.toml', '**/*.opam') }}
+          restore-keys: |
+            ${{ runner.os }}-ocaml-${{ steps.setup-ocaml.outputs.ocaml-version }}-opam-
+
+      - name: Install Forester (if not found in cache)
+        if: steps.cache-opam.outputs.cache-hit != 'true'
         run: |
-          echo -e 'n\nN' | opam init --disable-sandboxing --reinit --bare -y
-          opam switch create default ocaml-base-compiler.5.1.1 -y
-          eval $(opam env)
           opam update
-          opam install forester -y
-          forester --version
+          opam install forester -y # Installs Forester and its dependencies
 
-      - name: DEBUG - List files BEFORE build
+      - name: Ensure OPAM environment is set up
+        run: eval $(opam env) # So 'forester' command can be found
+
+      - name: Build Forester site
         run: |
-          echo "Listing files BEFORE Forester build in $(pwd):"
-          ls -laR
-          echo "--- End of pre-build file listing ---"
-
-      - name: Build Site with Forester
-        run: |
-          eval $(opam env)
-          echo "Running: forester build forest.toml"
-          forester build forest.toml
-          echo "Forester build command finished."
-
-      - name: DEBUG - List files AFTER build (especially output dir)
-        run: |
-          echo "Listing files AFTER Forester build in $(pwd):"
-          ls -laR
-          echo "--- Looking specifically inside ./output (if it exists) ---"
-          if [ -d "./output" ]; then
-            echo "Contents of ./output:"
-            ls -laR ./output
-          else
-            echo "./output directory NOT FOUND!"
-          fi
-          echo "--- End of post-build file listing ---"
-
-      - name: Deploy to gwesley96.github.io/files
+          # eval $(opam env) # Already set in the previous step
+          forester build forest.toml # This command should create an ./output directory
+          echo "Forester build complete. Checking output directory:"
+          ls -la ./output # Lists contents of the output directory for verification
+      - name: Deploy 'output' directory to gwesley96.github.io/tytytyty
         uses: peaceiris/actions-gh-pages@v4
         with:
           personal_token: ${{ secrets.GH_PAGES_PAT }}
           external_repository: gwesley96/gwesley96.github.io
-          publish_branch: master # Or main, depending on your GitHub Pages source branch for gwesley96.github.io
+          publish_branch: master 
           publish_dir: ./output
-          target_dir: files
-          keep_files: true # <--- THIS IS THE CRUCIAL ADDITION
+          destination_dir: tytytyty # <--- Changed to 'destination_dir'
+          keep_files: true
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
-          commit_message: Deploy to /files (automated build from source repo)
-          # force_orphan: false # Default is false, but explicitly setting it can sometimes help if keep_files isn't enough
-          # allow_empty_commit: false # Default, usually fine
+          commit_message: 'Deploy Forester output to /tytytyty [CI]'
