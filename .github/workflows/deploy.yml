@@ -9,7 +9,6 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     container:
-      # Use an official OCaml/OPAM Docker image with OCaml 5.1 (a common recent version)
       image: ocaml/opam:ubuntu-ocaml-5.1
       options: --user root
 
@@ -19,27 +18,38 @@ jobs:
 
       - name: Initialize OPAM, Create OCaml 5.1 Switch, Update, and Install Forester
         run: |
-          # Ensure opam init runs non-interactively regarding shell modifications
           echo -e 'n\nN' | opam init --disable-sandboxing --reinit --bare -y
-          
-          # Explicitly create a switch named 'default' using OCaml 5.1.1 (adjust patch if needed)
-          # This should align with Forester's requirements.
-          # This step will likely take time as it compiles OCaml 5.1.1 if not perfectly cached.
           opam switch create default ocaml-base-compiler.5.1.1 -y
-          
           eval $(opam env)
           opam update
-          
-          # Install Forester
-          # With OCaml 5.1.1, Forester's dependencies should resolve.
           opam install forester -y
-          
           forester --version
+
+      - name: DEBUG - List files BEFORE build
+        run: |
+          echo "Listing files BEFORE Forester build in $(pwd):"
+          ls -laR
+          echo "--- End of pre-build file listing ---"
 
       - name: Build Site with Forester
         run: |
           eval $(opam env)
+          echo "Running: forester build forest.toml"
           forester build forest.toml
+          echo "Forester build command finished."
+
+      - name: DEBUG - List files AFTER build (especially output dir)
+        run: |
+          echo "Listing files AFTER Forester build in $(pwd):"
+          ls -laR
+          echo "--- Looking specifically inside ./output (if it exists) ---"
+          if [ -d "./output" ]; then
+            echo "Contents of ./output:"
+            ls -laR ./output
+          else
+            echo "./output directory NOT FOUND!"
+          fi
+          echo "--- End of post-build file listing ---"
 
       - name: Deploy to gwesley96.github.io/files
         uses: peaceiris/actions-gh-pages@v4
@@ -47,7 +57,7 @@ jobs:
           personal_token: ${{ secrets.GH_PAGES_PAT }}
           external_repository: gwesley96/gwesley96.github.io
           publish_branch: main
-          publish_dir: ./output
+          publish_dir: ./output # This must be where Forester actually puts its final site files
           target_dir: files
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
