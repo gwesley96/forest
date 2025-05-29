@@ -1,11 +1,11 @@
 [forest]
-trees = ["trees" ]                   # The directories in which your trees are stored
+trees = ["trees" ]                   
 assets = ["assets"]                  # The directories in which your assets are stored
 theme = "theme"                      # The directory in which your theme is stored
 
 
 [forest]
-trees = ["trees", "macros", "blog"]
+trees = ["trees", "macros", "blog"] # The directories in which your trees are stored
 assets = ["assets"]
 theme = "theme"
 home = "home"
