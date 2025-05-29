@@ -20,8 +20,7 @@ jobs:
           # 2. You might need to specify a particular OCaml version if Forester requires it.
           #    '4.x' will pick a recent 4.x version.
           ocaml-compiler: '4.x'
-          # Add this line to avoid issues with missing optional system dependencies like darcs
-          opam-depext-flags: '--no-recommend, --set-solver=aspcud'
+          opam-depext: false # Disable automatic system dependency installation by opam-depext
 
       - name: Install Forester using OPAM
         run: |
