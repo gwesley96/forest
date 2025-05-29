@@ -18,19 +18,20 @@ jobs:
 
       - name: Initialize OPAM, Update, and Install Forester
         run: |
-          # Initialize OPAM for the root user, trying to use the existing system OCaml
-          # This assumes the container has OCaml 4.14.x in PATH.
+          # Initialize OPAM for the root user, without creating a switch immediately
           opam init --disable-sandboxing --reinit --bare --set-root -y
           
-          # Create a switch using the system OCaml compiler
-          # The `ocaml-system` package in opam refers to the system-installed OCaml
+          # Explicitly create a switch named 'default' using the system-provided OCaml
+          # This should use the OCaml 4.14.x that the Docker image is based on.
           opam switch create default system -y
           
           eval $(opam env)
           opam update
           
-          # Install Forester
-          opam install forester -y --no-depexts 
+          # Install Forester. Removed --no-depexts as it's not supported by the opam version.
+          # If this fails due to missing system deps, we'll see specific errors.
+          opam install forester -y
+          
           forester --version
 
       - name: Build Site with Forester
