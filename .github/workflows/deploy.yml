@@ -20,8 +20,8 @@ jobs:
         id: cache-opam
         uses: actions/cache@v4
         with:
-          path: /root/.opam 
-          key: <span class="math-inline">\{\{ runner\.os \}\}\-ocaml5\.1\-opam\-root\-</span>{{ hashFiles('**/forest.toml', '**/*.opam', '**/opam.lock') }}
+          path: /root/.opam
+          key: ${{ runner.os }}-ocaml5.1-opam-root-${{ hashFiles('**/forest.toml', '**/*.opam', '**/opam.lock') }}
           restore-keys: |
             ${{ runner.os }}-ocaml5.1-opam-root-
 
