@@ -56,7 +56,7 @@ jobs:
         with:
           personal_token: ${{ secrets.GH_PAGES_PAT }}
           external_repository: gwesley96/gwesley96.github.io
-          publish_branch: master
+          publish_branch: main
           publish_dir: ./output # This must be where Forester actually puts its final site files
           target_dir: files
           user_name: 'github-actions[bot]'
